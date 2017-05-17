@@ -1,0 +1,89 @@
+heat_template_version: 2015-04-30
+description: Installs Sensu Checks
+
+parameters:
+
+  server_map:
+    type: json
+    description: Map of servers to be used with OS::Heat::SoftwareDeploymentGroup
+
+  http_proxy:
+    type: string
+    description: "HTTP proxy URL"
+    default: ''
+
+  https_proxy:
+    type: string
+    description: "HTTPS proxy URL"
+    default: ''
+
+  no_proxy:
+    type: string
+    description: "Exceptions to proxy configuration"
+    default: ''
+
+  name:
+    type: string
+    description: Name of the check
+
+  command:
+    type: string
+    description: The command to run as part of the check
+
+  subscribers:
+    type: comma_delimited_list
+    description: List of subscribers
+
+  standalone:
+    type: boolean
+    default: true
+
+  interval:
+    type: number
+    default: 60
+
+  restart_services:
+    type: comma_delimited_list
+    description: Sensu services to restart after check was installed. Values may be \'server\' and/or \'client\'
+    default:
+      - server
+
+resources:
+
+  # SOFTWARE CONFIGS
+ 
+  install:
+    type: OS::Heat::SoftwareConfig
+    properties:
+      group: script
+      config: { get_file: scripts/ubuntu/install-check.sh }
+      inputs:
+        - name: NAME
+        - name: COMMAND
+        - name: SUBSCRIBERS
+          type: CommaDelimitedList
+        - name: STANDALONE
+        - name: INTERVAL
+        - name: RESTART_SERVICES
+          type: CommaDelimitedList
+
+  # SOFTWARE DEPLOYMENTS
+ 
+  deploy_install:
+    type: OS::Heat::SoftwareDeploymentGroup
+    properties:
+      config: { get_resource: install }
+      servers: { get_param: server_map }
+      signal_transport: HEAT_SIGNAL
+      input_values:
+        http_proxy: { get_param: http_proxy }
+        https_proxy: { get_param: https_proxy }
+        no_proxy: { get_param: no_proxy }
+        NAME: { get_param: name }
+        COMMAND: { get_param: command }
+        SUBSCRIBERS: { get_param: subscribers }
+        STANDALONE: { get_param: standalone }
+        INTERVAL: { get_param: interval } 
+        RESTART_SERVICES: { get_param: restart_services }
+
+outputs:

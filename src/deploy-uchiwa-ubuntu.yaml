@@ -1,0 +1,82 @@
+heat_template_version: 2015-04-30
+description: Installs Uchiwa Dashboard
+
+parameters:
+
+  server_map:
+    type: json
+    description: Map of servers to be used with OS::Heat::SoftwareDeploymentGroup
+
+  http_proxy:
+    type: string
+    description: "HTTP proxy URL"
+    default: ''
+
+  https_proxy:
+    type: string
+    description: "HTTPS proxy URL"
+    default: ''
+
+  no_proxy:
+    type: string
+    description: "Exceptions to proxy configuration"
+    default: ''
+
+  uchiwa_port:
+    type: number
+    default: 3000
+
+  sites:
+    type: comma_delimited_list
+    description: List of site definitions for Uchiwa. Each elements must be a map with fields name, host and port
+
+resources:
+
+  # SOFTWARE CONFIGS
+
+  install:
+    type: OS::Heat::SoftwareConfig
+    properties:
+      group: script
+      config: { get_file: scripts/ubuntu/uchiwa/1_install.sh }
+      inputs:
+        - name: VERSION
+
+  configure:
+    type: OS::Heat::SoftwareConfig
+    properties:
+      group: script
+      config: { get_file: scripts/ubuntu/uchiwa/2_configure.sh }
+      inputs:
+        - name: SITES
+          type: CommaDelimitedList
+
+  # SOFTWARE DEPLOYMENTS
+ 
+  deploy_install:
+    type: OS::Heat::SoftwareDeploymentGroup
+    properties:
+      config: { get_resource: install }
+      servers: { get_param: server_map }
+      signal_transport: HEAT_SIGNAL
+      input_values:
+        http_proxy: { get_param: http_proxy }
+        https_proxy: { get_param: https_proxy }
+        no_proxy: { get_param: no_proxy }
+
+  deploy_configure_transport:
+    type: OS::Heat::SoftwareDeploymentGroup
+    properties:
+      config: { get_resource: configure }
+      servers: { get_param: server_map }
+      signal_transport: HEAT_SIGNAL
+      input_values:
+        http_proxy: { get_param: http_proxy }
+        https_proxy: { get_param: https_proxy }
+        no_proxy: { get_param: no_proxy }
+        SITES: { get_param: sites }
+        BIND_PORT: { get_param: uchiwa_port }
+    depends_on:
+      - deploy_install
+
+outputs:

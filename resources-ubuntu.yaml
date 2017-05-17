@@ -1,0 +1,5 @@
+resource_registry:
+  "Evoila::Deployment::Sensu::Server": src/deploy-sensu-server-ubuntu.yaml
+  "Evoila::Deployment::Sensu::Client": src/deploy-sensu-client-ubuntu.yaml
+  "Evoila::Deployment::Sensu::Check": src/deploy-sensu-check-ubuntu.yaml
+  "Evoila::Deployment::Uchiwa": src/deploy-uchiwa-ubuntu.yaml

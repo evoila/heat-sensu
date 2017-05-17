@@ -1,0 +1,190 @@
+heat_template_version: 2015-10-15
+
+parameter_groups:
+
+parameters:
+
+  key:
+    type: string
+    constraints:
+      - custom_constraint: nova.keypair
+
+  image:
+    type: string
+    constraints:
+      - custom_constraint: glance.image
+
+  flavor:
+    type: string
+    constraints:
+      - custom_constraint: nova.flavor
+
+  public_network:
+    type: string
+    constraints:
+      - custom_constraint: neutron.network
+
+  dns_nameservers:
+    type: comma_delimited_list
+    description: List of DNS servers
+    default:
+      - 8.8.8.8
+
+  name:
+    type: string
+    default: sensu
+
+resources:
+
+  router:
+    type: OS::Neutron::Router
+    properties:
+      name: { get_param: name }
+      external_gateway_info:
+        network: { get_param: public_network }
+
+  simple_networking1:
+    type: Evoila::IaaS::NetworkLayout::Simple
+    properties:
+      name: { get_param: name }
+      network_cidr: 192.168.0.0/24
+      router: { get_resource: router }
+      dns_nameservers: { get_param: dns_nameservers }
+
+  security_group:
+    type: OS::Neutron::SecurityGroup
+    properties:
+      name: { get_param: name }
+      rules:
+        - remote_ip_prefix: 0.0.0.0/0
+
+  cluster:
+    type: Evoila::IaaS::Cluster::Basic
+    properties:
+      count: 3
+      signals: 3
+      name: { get_param: name }
+      key: { get_param: key }
+      image: { get_param: image }
+      flavor: { get_param: flavor }
+      security_groups:
+        - { get_resource: security_group }
+      subnets:
+        - { get_attr: [simple_networking1, subnet] }
+      timeout: 500
+      extras:
+        volume_count: 0
+        volume_size: 0
+
+  hosts_file:
+    type: Evoila::Deployment::HostsFile
+    properties:
+      server_map: { get_attr: [ cluster, attributes_id ] }
+      server_addresses: { get_attr: [ cluster, first_addresses ] }
+      server_names: { get_attr: [ cluster, names ] }
+
+  rabbitmq:
+    type: Evoila::Deployment::RabbitMQ
+    properties:
+      server_map: { get_attr: [ cluster, attributes_id ] }
+      server_list: { get_attr: [ cluster, ids ] }
+      server_names: { get_attr: [ cluster, names ] }
+    depends_on:
+      - hosts_file
+
+  vhost:
+    type: Evoila::Deployment::RabbitMQ::VHost
+    properties:
+      server_list: { get_attr: [ cluster, ids ] }
+      name: sensu
+    depends_on:
+      - rabbitmq
+
+  user:
+    type: Evoila::Deployment::RabbitMQ::User
+    properties:
+      server_list: { get_attr: [ cluster, ids ] }
+      name: sensu
+      vhost: sensu
+    depends_on:
+      - vhost
+
+  redis:
+    type: Evoila::Deployment::Redis
+    properties:
+      server_map: { get_attr: [ cluster, attributes_id ] }
+      server_names: { get_attr: [ cluster, names ] }
+      server_list: { get_attr: [ cluster, ids ] }
+      server_addresses: { get_attr: [ cluster, first_addresses ] } 
+    depends_on:
+      - hosts_file
+
+  redis_sentinel:
+    type: Evoila::Deployment::RedisSentinel
+    properties:
+      server_map: { get_attr: [ cluster, attributes_id ] }
+      master_name: { get_attr: [ redis, master_name ] }
+      master_address: { get_attr: [ redis, master_address ] }
+      master_password: { get_attr: [ redis, master_password ] }
+    depends_on:
+      - redis
+
+  sensu_server:
+    type: Evoila::Deployment::Sensu::Server
+    properties:
+      server_map: { get_attr: [ cluster, attributes_id ] }
+      rabbitmq_addresses: { get_attr: [ cluster, first_addresses ] }
+      rabbitmq_port: 5672
+      rabbitmq_password: { get_attr: [ user, password ] }
+      rabbitmq_user: sensu
+      rabbitmq_vhost: sensu
+      redis_sentinel_addresses: { get_attr: [ cluster, first_addresses ] }
+      redis_sentinel_port: 26379
+      redis_password: { get_attr: [ redis, master_password ] }
+      redis_master: { get_attr: [ redis, master_name ] }
+      sensu_api_port: 4568
+      plugins:
+        - slack
+    depends_on:
+      - redis_sentinel
+      - rabbitmq
+
+  sensu_client:
+    type: Evoila::Deployment::Sensu::Client
+    properties:
+      server_map: { get_attr: [ cluster, attributes_id ] }
+      rabbitmq_addresses: { get_attr: [ cluster, first_addresses ] }
+      rabbitmq_port: 5672
+      rabbit_vhost: sensu
+      rabbit_user: sensu
+      rabbit_password: { get_attr: [ user, password ] }
+      subscriptions:
+        - linux
+      plugins:
+        - load-checks
+    depends_on:
+      - sensu_server
+
+  sensu_check:
+    type: Evoila::Deployment::Sensu::Check
+    properties:
+      server_map: { get_attr: [ cluster, attributes_id ] }
+      name: load
+      command: 'check-load.rb --warn 0.8,0.7,0.6 --crit 0.9,0.8,0.7 -p'
+      subscribers:
+        - linux
+      standalone: false
+    depends_on:
+      - sensu_server
+
+  uchiwa:
+    type: Evoila::Deployment::Uchiwa
+    properties:
+      server_map: { get_attr: [ cluster, attributes_id ] }
+      uchiwa_port: 3001
+      sites:
+        - site1;127.0.0.1;4568
+    depends_on:
+      - sensu_server
+
+outputs:
