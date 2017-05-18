@@ -1,0 +1,203 @@
+heat_template_version: 2015-04-30
+description: Installs Sensu
+
+parameters:
+
+  server_map:
+    type: json
+    description: Map of servers to be used with OS::Heat::SoftwareDeploymentGroup
+
+  http_proxy:
+    type: string
+    description: "HTTP proxy URL"
+    default: ''
+
+  https_proxy:
+    type: string
+    description: "HTTPS proxy URL"
+    default: ''
+
+  no_proxy:
+    type: string
+    description: "Exceptions to proxy configuration"
+    default: ''
+
+  rabbitmq_addresses:
+    type: comma_delimited_list
+
+  rabbitmq_port:
+    type: number
+
+  rabbitmq_password:
+    type: string
+    hidden: true
+
+  rabbitmq_vhost:
+    type: string
+
+  rabbitmq_user:
+    type: string
+
+  redis_sentinel_addresses:
+    type: comma_delimited_list
+
+  redis_sentinel_port:
+    type: number
+
+  redis_password:
+    type: string
+    hidden: true
+
+  redis_master:
+    type: string
+
+  sensu_api_port:
+    type: number
+    default: 4567
+
+  plugins:
+    type: comma_delimited_list
+    description: Sensu plugins to install
+
+resources:
+
+  # SOFTWARE CONFIGS
+ 
+  install:
+    type: OS::Heat::SoftwareConfig
+    properties:
+      group: script
+      config: { get_file: scripts/centos/server/1_install.sh }
+      inputs:
+        - name: VERSION
+        - name: PLUGINS
+          type: CommaDelimitedList
+
+  configure_transport:
+    type: OS::Heat::SoftwareConfig
+    properties:
+      group: script
+      config: { get_file: scripts/centos/server/2_configure-transport.sh }
+      inputs:
+        - name: TRANSPORT_NAME
+
+  configure_rabbitmq:
+    type: OS::Heat::SoftwareConfig
+    properties:
+      group: script
+      config: { get_file: scripts/centos/server/3_configure-rabbitmq.sh }
+      inputs:
+        - name: ADDRESSES
+          type: CommaDelimitedList
+        - name: VHOST
+        - name: PORT
+        - name: USER
+        - name: PASSWORD
+
+  configure_redis:
+    type: OS::Heat::SoftwareConfig
+    properties:
+      group: script
+      config: { get_file: scripts/centos/server/4_configure-redis.sh }
+      inputs:
+         - name: ADDRESSES
+           type: CommaDelimitedList
+         - name: PORT
+         - name: PASSWORD
+         - name: MASTER
+
+  configure_api:
+    type: OS::Heat::SoftwareConfig
+    properties:
+      group: script
+      config: { get_file: scripts/centos/server/5_configure-api.sh }
+      inputs:
+        - name: BIND_PORT
+
+  # SOFTWARE DEPLOYMENTS
+
+  deploy_install:
+    type: OS::Heat::SoftwareDeploymentGroup
+    properties:
+      config: { get_resource: install }
+      servers: { get_param: server_map }
+      signal_transport: HEAT_SIGNAL
+      input_values:
+        http_proxy: { get_param: http_proxy }
+        https_proxy: { get_param: https_proxy }
+        no_proxy: { get_param: no_proxy }
+        PLUGINS: { get_param: plugins }
+
+  deploy_configure_transport:
+    type: OS::Heat::SoftwareDeploymentGroup
+    properties:
+      config: { get_resource: configure_transport }
+      servers: { get_param: server_map }
+      signal_transport: HEAT_SIGNAL
+      input_values:
+        http_proxy: { get_param: http_proxy }
+        https_proxy: { get_param: https_proxy }
+        no_proxy: { get_param: no_proxy }
+        TRANSPORT_NAME: rabbitmq
+    depends_on:
+      - deploy_install
+
+  deploy_configure_rabbitmq:
+    type: OS::Heat::SoftwareDeploymentGroup
+    properties:
+      config: { get_resource: configure_rabbitmq }
+      servers: { get_param: server_map }
+      signal_transport: HEAT_SIGNAL
+      input_values:
+        http_proxy: { get_param: http_proxy }
+        htaps_proxy: { get_param: https_proxy }
+        no_proxy: { get_param: no_proxy }
+        ADDRESSES: { get_param: rabbitmq_addresses }
+        PORT: { get_param: rabbitmq_port }
+        VHOST: { get_param: rabbitmq_vhost }
+        USER: { get_param: rabbitmq_user }
+        PASSWORD: { get_param: rabbitmq_password }
+    depends_on:
+      - deploy_configure_transport
+
+  deploy_configure_redis:
+    type: OS::Heat::SoftwareDeploymentGroup
+    properties:
+      config: { get_resource: configure_redis }
+      servers: { get_param: server_map }
+      signal_transport: HEAT_SIGNAL
+      input_values:
+        http_proxy: { get_param: http_proxy }
+        https_proxy: { get_param: https_proxy }
+        no_proxy: { get_param: no_proxy }
+        ADDRESSES: { get_param: redis_sentinel_addresses }
+        PORT: { get_param: redis_sentinel_port }
+        PASSWORD: { get_param: redis_password }
+        MASTER: { get_param: redis_master }
+    depends_on:
+      - deploy_install
+
+  deploy_configure_api:
+    type: OS::Heat::SoftwareDeploymentGroup
+    properties:
+      config: { get_resource: configure_api }
+      servers: { get_param: server_map }
+      signal_transport: HEAT_SIGNAL
+      input_values:
+        http_proxy: { get_param: http_proxy }
+        https_proxy: { get_param: https_proxy }
+        no_proxy: { get_param: no_proxy }
+        BIND_PORT: { get_param: sensu_api_port }
+    depends_on:
+      - deploy_configure_redis
+
+outputs:
+
+  rabbit_vhost:
+    value: sensu
+
+  rabbit_user:
+    value: sensu
+
+  rabbit_password:
+    value: { get_param: sensu_rabbitmq_password }

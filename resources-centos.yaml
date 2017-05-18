@@ -1,0 +1,5 @@
+resource_registry:
+  "Evoila::Deployment::Sensu::Server": src/deploy-sensu-server-centos.yaml
+  "Evoila::Deployment::Sensu::Client": src/deploy-sensu-client-centos.yaml
+  "Evoila::Deployment::Sensu::Check": src/deploy-sensu-check-centos.yaml
+  "Evoila::Deployment::Uchiwa": src/deploy-uchiwa-centos.yaml
