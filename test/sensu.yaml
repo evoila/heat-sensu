@@ -120,7 +120,7 @@ resources:
       - hosts_file
 
   redis_sentinel:
-    type: Evoila::Deployment::RedisSentinel
+    type: Evoila::Deployment::Redis::Sentinel
     properties:
       server_map: { get_attr: [ cluster, attributes_id ] }
       master_name: { get_attr: [ redis, master_name ] }
@@ -170,7 +170,7 @@ resources:
     properties:
       server_map: { get_attr: [ cluster, attributes_id ] }
       name: load
-      command: 'check-load.rb --warn 0.8,0.7,0.6 --crit 0.9,0.8,0.7 -p'
+      command: 'check-load.rb --warn 0.8,0.7,0.6 --crit 0.9,0.8,0.7'
       subscribers:
         - linux
       standalone: false
