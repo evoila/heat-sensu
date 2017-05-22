@@ -29,10 +29,10 @@ cat <<EOF > $FILE
 EOF
 
 # Restart services
-LENGTH=$(echo ${RESTART_SERVICES} | /usr/bin/jq 'length')
+LENGTH=$(echo ${RESTART_SERVICES} | jq 'length')
 LAST_INDEX=$((LENGTH-1))
 
 for I in `seq 0 $LAST_INDEX`; do
-  SERVICE=$(echo $RESTART_SERVICES | /usr/bin/jq -r ".[$I]" )
+  SERVICE=$(echo $RESTART_SERVICES | jq -r ".[$I]" )
   service sensu-$SERVICE restart
 done

@@ -25,10 +25,10 @@ if [ ! -z $http_proxy ]; then
   PROXY_OPTION="-x $http_proxy"
 fi
 
-LENGTH=$(echo ${PLUGINS} | /usr/bin/jq 'length')
+LENGTH=$(echo ${PLUGINS} | jq 'length')
 LAST_INDEX=$((LENGTH-1))
 
 for I in `seq 0 $LAST_INDEX`; do
-  PLUGIN=$(echo $PLUGINS | /usr/bin/jq -r ".[$I]" )
+  PLUGIN=$(echo $PLUGINS | jq -r ".[$I]" )
   sensu-install -v $PROXY_OPTION -p $PLUGIN
 done
