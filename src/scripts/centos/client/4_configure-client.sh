@@ -8,6 +8,8 @@ BIND_PORT=${BIND_PORT:-3030}
 PRIMARY_NIC=$(route -n | grep -E "^0.0.0.0" | awk '{print $8}')
 PRIMARY_ADDR=$(ip addr show dev $PRIMARY_NIC | grep -E "inet " | awk '{print $2}' | cut -d '/' -f1)
 
+HOSTNAME=$(hostname -s)
+
 cat <<EOF > /etc/sensu/conf.d/client.json
 {
   "client": {
