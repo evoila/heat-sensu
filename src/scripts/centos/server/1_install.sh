@@ -12,9 +12,9 @@ enabled=1
 EOF
 
 if [ ! -z $http_proxy ]; then
-  PROXY_USER=$(echo $http_proxy | gsed -r "s#http://([^:]+):[^:]+@.*\$#\1#")
-  PROXY_PASS=$(echo $http_proxy | gsed -r "s#http://[^:]+:([^:]+)@.*\$#\1#")
-  PROXY_URL=$(echo $http_proxy | gsed -r "s#(http://)[^:]+:[^:]+@(.*$)#\1\2#")
+  PROXY_USER=$(echo $http_proxy | sed -r "s#http://([^:]+):[^:]+@.*\$#\1#")
+  PROXY_PASS=$(echo $http_proxy | sed -r "s#http://[^:]+:([^:]+)@.*\$#\1#")
+  PROXY_URL=$(echo $http_proxy | sed -r "s#(http://)[^:]+:[^:]+@(.*$)#\1\2#")
   cat <<EOF >> /etc/yum.repos.d/sensu.repo
 proxy=$PROXY_URL
 proxy_username=$PROXY_USER
